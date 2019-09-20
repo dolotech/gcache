@@ -20,7 +20,7 @@ type TestEmail struct {
 }
 
 var modelValue string = `
-{\"PK\":\"18\",\"Model\":{\"ID\":18,\"CreatedAt\":\"2019-09-15T16:30:16+08:00\",\"UpdatedAt\":\"2019-09-15T16:30:16+08:00\",\"DeletedAt\":null,\"TypeID\":18,\"Subscribed\":false,\"TestUserID\":18}}
+{\"PK\":\"18\",\"Model\":{\"ID\":18,\"CreatedAt\":\"2019-09-15T16:30:16+08:00\",\"Timeout\":\"2019-09-15T16:30:16+08:00\",\"DeletedAt\":null,\"TypeID\":18,\"Subscribed\":false,\"TestUserID\":18}}
 `
 
 func TestInitRefreshData(t *testing.T) {
@@ -29,12 +29,12 @@ func TestInitRefreshData(t *testing.T) {
 	cp.handle.redisClient.Set("test_emails_model_18", modelValue, 180*time.Second).Err()
 	var js JsonSearch
 	js.Primarys = append(js.Primarys, 18)
-	js.UpdatedAt = time.Now().Unix() - 5000000
+	js.Timeout = time.Now().Unix() - 5000000
 	buffer, _ := json.Marshal(js)
 	cp.handle.redisClient.HSet("test_emails_search_&((type_id>=$)", "18_LIMIT_1", buffer)
 	cp.handle.redisClient.Expire("test_emails_search_&((type_id>=$)", 180*time.Second)
 
-	cp.handle.redisClient.HSet("test_emails_affect_type_id", "test_emails_search_&((type_id>=$)", js.UpdatedAt)
+	cp.handle.redisClient.HSet("test_emails_affect_type_id", "test_emails_search_&((type_id>=$)", js.Timeout)
 }
 
 func TestRefresh(t *testing.T) {
@@ -58,16 +58,71 @@ func gettestcachePlugin() *plugin {
 	return cachePlugin
 }
 
-func TestLuaRefresh(t *testing.T) {
+func TestLuaSetAffect(t *testing.T) {
 	c := gettestcachePlugin()
 	script := redis.NewScript(`
-	local all = redis.call("HGETALL", KEYS[1])
-	redis.log(redis.LOG_NOTICE, #all);
-	for k,v in pairs(all) do
-		redis.log(redis.LOG_NOTICE, k);
-		redis.log(redis.LOG_NOTICE, v);
+	for i=1,100000,1 do
+		redis.call("HSET", KEYS[1], i, ARGV[1])
 	end
 	return true
 `)
-	script.Run(c.handle.redisClient, []string{"test_users_search_&((test_users.user_name=$)&(test_users.age=$))"}, 1).Result()
+	t.Log(script.Run(c.handle.redisClient, []string{"www"}, time.Now().Unix() - 100).Result())
+}
+
+func TestLuaAffectRefresh(t *testing.T) {
+	c := gettestcachePlugin()
+	script := redis.NewScript(`
+	local all = redis.call("HGETALL", KEYS[1])
+	local key = ""
+	local timeout = tonumber(ARGV[1])
+	for k,v in pairs(all) do
+		if k % 2 == 1 then
+			key = v
+		else
+			if tonumber(v) < timeout then
+				redis.call("HDEL", KEYS[1], key)
+			end
+		end
+	end
+	return true
+`)
+	//redis.log(redis.LOG_NOTICE, key, v)
+	t.Log(script.Run(c.handle.redisClient, []string{"www"}, time.Now().Unix() - 50).Result())
+}
+
+
+func TestLuaSetSearch(t *testing.T) {
+	c := gettestcachePlugin()
+	script := redis.NewScript(`
+	for i=1,100,1 do
+		redis.call("HSET", KEYS[1], i, ARGV[1])
+	end
+`)
+	var js JsonSearch
+	js.Primarys = append(js.Primarys, 18)
+	js.Timeout = time.Now().Unix() - 100
+	buffer, _ := json.Marshal(js)
+	t.Log(script.Run(c.handle.redisClient, []string{"com"}, string(buffer)).Result())
+}
+
+func TestLuaSearchRefresh(t *testing.T) {
+	c := gettestcachePlugin()
+	script := redis.NewScript(`
+	local all = redis.call("HGETALL", KEYS[1])
+	local key = ""
+	local timeout = tonumber(ARGV[1])
+	for k,v in pairs(all) do
+		if k % 2 == 1 then
+			key = v
+		else
+			local data = cjson.decode(v);
+			if tonumber(data["Timeout"]) < timeout then
+				redis.call("HDEL", KEYS[1], key)
+			end
+		end
+	end
+	return true
+`)
+	//redis.log(redis.LOG_NOTICE, key, v)
+	t.Log(script.Run(c.handle.redisClient, []string{"com"}, time.Now().Unix() - 150).Result())
 }

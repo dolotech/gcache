@@ -49,7 +49,7 @@ func (ch *createHandle) CreateCountSearch(table, key, field string, whereField [
 //}) (e error) {
 	//return ch.createLuaSearch(table, key, field, whereField, values,expiration,joins...)
 	//now := time.Now().Unix()
-	//jsearch := &JsonSearch{UpdatedAt: now, Primarys: values}
+	//jsearch := &JsonSearch{Timeout: now, Primarys: values}
 	//buff, e := json.Marshal(jsearch)
 	//if e != nil {
 	//	return
@@ -96,7 +96,7 @@ func (ch *createHandle) CreateSearch(table, key, field string, whereField []stri
 	now := time.Now().Unix()
 	var keys []string
 	var argv []interface{}
-	jsearch := &JsonSearch{UpdatedAt: now, Primarys: values}
+	jsearch := &JsonSearch{Timeout: now, Primarys: values}
 	buff, e := json.Marshal(jsearch)
 	if e != nil {
 		return

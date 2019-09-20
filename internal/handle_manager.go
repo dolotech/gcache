@@ -132,6 +132,6 @@ type JsonModel struct {
 }
 
 type JsonSearch struct {
-	UpdatedAt int64
-	Primarys  []interface{}
+	Timeout  int64
+	Primarys []interface{}
 }

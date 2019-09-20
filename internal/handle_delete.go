@@ -139,7 +139,7 @@ func (dh *deleteHandle) timeoutSearch(searchKey string, now time.Time) {
 				return
 			}
 
-			if now.Sub(time.Unix(int64(jsearch.UpdatedAt), 0)).Minutes() > 30.0 {
+			if now.Sub(time.Unix(int64(jsearch.Timeout), 0)).Minutes() > 30.0 {
 				delfields = append(delfields, fields[index])
 			}
 		}
