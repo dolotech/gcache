@@ -3,6 +3,7 @@ package internal
 import (
 	"encoding/json"
 	"github.com/8treenet/gcache/option"
+	"github.com/go-redis/redis"
 	"reflect"
 	"testing"
 	"time"
@@ -45,7 +46,7 @@ func TestRefresh(t *testing.T) {
 }
 
 func gettestcachePlugin() *plugin {
-	addr := "root:123123@tcp(127.0.0.1:3306)/XXXXX?charset=utf8&parseTime=True&loc=Local"
+	addr := "root:123123@tcp(127.0.0.1:3306)/matrix?charset=utf8&parseTime=True&loc=Local"
 	db, e := gorm.Open("mysql", addr)
 	if e != nil {
 		panic(e)
@@ -55,4 +56,18 @@ func gettestcachePlugin() *plugin {
 	//缓存插件 注入到Gorm。开启Debug，查看日志
 	cachePlugin := InjectGorm(db, &opt, &option.RedisOption{Addr:"localhost:6379"})
 	return cachePlugin
+}
+
+func TestLuaRefresh(t *testing.T) {
+	c := gettestcachePlugin()
+	script := redis.NewScript(`
+	local all = redis.call("HGETALL", KEYS[1])
+	redis.log(redis.LOG_NOTICE, #all);
+	for k,v in pairs(all) do
+		redis.log(redis.LOG_NOTICE, k);
+		redis.log(redis.LOG_NOTICE, v);
+	end
+	return true
+`)
+	script.Run(c.handle.redisClient, []string{"test_users_search_&((test_users.user_name=$)&(test_users.age=$))"}, 1).Result()
 }
